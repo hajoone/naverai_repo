@@ -27,6 +27,70 @@ $(document).ready(function(){
 							$("#response").append
 							('<a href=' + bubbles[b].data.url + '>' + bubbles[b].data.description + '</a><br>');
 						}
+						$.ajax({
+							url : '/chatbottts',
+							data : {'text' : bubbles[b].data.description},
+							type : 'get',
+							dataType : 'json',
+							success : function(server){
+								//id tts audio 태그 재생
+								//1.id tts 태그 dom.읽기
+								let audio = document.getElementById("tts");
+								//2.1번 src 속성 재생mp3지정
+								audio.src = "/naverimages/" + server.mp3;
+								//3.1번 play()
+								audio.play();
+							},	
+							error : function(e){
+								alert(e);
+							}
+						});
+						//피자 주문
+						var order_reply = bubbles[b].data.description
+						if(order_reply.indexOf("주문하셨습니다.") >= 0){
+							var split_result = order_reply.split(" ");
+							var kind = split_result[0];
+							var size = split_result[1];
+							var phone = split_result[4];
+							var kinds = ["콤비네이션피자", "소세지크림치즈피자", "파인애플피자"];
+							var prices = [10000, 15000, 12000];
+							var sizes = ["소","중","대","특대"];
+							var add_prices =[0, 2000, 5000, 10000];
+							
+							var price = 0;
+							var addPrice = 0;
+							var totalPrice = 0;
+							for(var i= 0; i< kinds.length; i++){
+								if(kind == kinds[i]){
+									price = prices[i]
+									break;
+								}
+							}
+							
+							for(var i= 0; i< sizes.length; i++){
+								if(size == sizes[i]){
+									addPrice = add_prices[i]
+									break;
+								}
+							}
+							totalPrice = price + addPrice;
+							if(size == "중") {price = price + 2000;}
+							if(size == "대") {price = price + 5000;}
+							if(size == "특대") {price = price + 10000;}
+							$("#response").append("총 지불 가격 : " + totalPrice);
+							
+							$.ajax({
+								url : "/pizzaorder",
+								data : {"kind":kind, "size":size,"price":totalPrice,"phone":phone},
+								type : "get",
+								dataType :"json",
+								success : function(server){
+									alert(server.insertrow);
+								}
+							})
+						}
+						
+						
 					}
 					//이미지이거나 멀티링크
 					else if(bubbles[b].type=='template'){
@@ -66,9 +130,100 @@ $(document).ready(function(){
 질문 : <input type=text id="request" >
 <input type=button value="답변" id='event1' >
 <input type=button value="웰컴메시지" id='event2' >
+<button id="record">음성질문녹음시작</button>
+<button id="stop">음성질문녹음종료</button>
+<div id="sound"></div>
 
 <br>
 대화내용 : <div id="response" style="border:2px solid aqua"></div> 
+음성답변 : <audio id="tts" controls="controls"></audio>
 
+<script>
+let record = document.getElementById("record");
+let stop = document.getElementById("stop");
+let sound = document.getElementById("sound");
+
+if(navigator.mediaDevices){
+	console.log("지원가능");
+	var constraint = {"audio":true};
+}
+//녹음 진행 동안 -blob 객체- 녹음종료 - mp3파일 생성 저장
+let chunks = [];
+navigator.mediaDevices.getUserMedia(constraint)
+.then(function(stream){
+	var mediaRecorder = new MediaRecorder(stream);
+	record.onclick = function(){
+		mediaRecorder.start();
+		record.style.color = "red";
+		record.style.backgroundColor = "blue";
+	}
+	stop.onclick = function(){
+		mediaRecorder.stop();
+		record.style.color = "";
+		record.style.backgroundColor = "";
+	}
+	//녹음시작상태이면 chunks에 녹음 데이터 저장
+	mediaRecorder.ondataavailable = function(d){
+		chunks.push(d.data);
+	}
+	//녹음정지상태이면 chunks=>blob ->mp3
+	mediaRecorder.onstop = function(){
+		var audio = document.createElement("audio");
+		audio.setAttribute("controls","");
+		audio.controls = true;
+		sound.replaceChildren(audio);
+		sound.appendChild(audio);
+		
+		//녹음 데이터 가져와서 audio 태그 재생
+		var blob = new Blob(chunks,{"type" : "audio/mp3" });
+		var mp3url = URL.createObjectURL(blob);
+		audio.src = mp3url;
+		
+		//다음 녹음 위해chunks 초기화
+		chunks = [];
+		
+		//var a = document.createElement("a");
+		//sound.appendChild(a);
+		//a.href=mp3url;
+		//a.innerHTML = "파일로 저장";
+		//a.download = "a.mp3"
+		//클라이언트 브라우저 지정 경로\a.mp3 저장
+		
+		//스프링부트 서버 요청 a.mp3 upload
+		var formData = new FormData();
+		formData.append("file1", blob, "a.mp3");		
+		$.ajax({
+			url : "/mp3upload",
+			data : formData,
+			type : "post",
+			processData : false,
+			contentType : false,
+			success : function(server){
+				$.ajax({
+					url : "/chatbotstt",
+					data : {"mp3file" : "a.mp3"},
+					type : "get",
+					dataType : "json",
+					success : function(server){
+						$("#request").val(server.text);
+					}
+					
+					
+				})
+			},
+			error : function(e){
+				alert(e);
+			}
+			
+			
+		
+			
+		});
+	}
+	
+})//then end
+.catch(function(err){console.log("오류발생" + err)});
+
+</script>
 </body>
 </html>
