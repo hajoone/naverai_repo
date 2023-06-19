@@ -9,7 +9,7 @@
 <script>
 $(document).ready(function(){
 	let json = JSON.parse('${response }');
-	$("#second").html("답변내용 : " + json.bubbles[0].data.description);
+	$("#second").html("답변 : " + json.bubbles[0].data.description);
 });
 </script>
 </head>
